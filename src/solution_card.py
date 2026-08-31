@@ -189,6 +189,11 @@ def build_solution_card(
     has_grounded_answer = has_explicit_answer
     confidence = "资料可支持初步回复" if has_grounded_answer else "资料不足，需要人工确认"
 
+    pricing_requires_assessment = (
+        any(term in cleaned_query for term in ("价格", "多少钱", "收费", "报价", "费用"))
+        and any("单独评估" in item.text or "另行评估" in item.text for item in risks)
+    )
+
     if has_blocking_risk:
         # General product descriptions are not evidence that the blocked
         # requirement itself is supported. Hide them from the match section.
@@ -197,10 +202,12 @@ def build_solution_card(
     if has_grounded_answer:
         confirmed_text = join_statements(capabilities[:2])
         reply_parts = [f"根据当前产品资料，可初步确认：{confirmed_text}"]
+        if pricing_requires_assessment:
+            reply_parts.append("其中私有化部署的具体价格需要单独评估服务器、部署和维护成本。")
     else:
         reply_parts = ["当前产品资料不足以确认该需求，暂时不能向客户作出承诺。"]
 
-    if risks:
+    if risks and not pricing_requires_assessment:
         risk_text = join_statements(risks[:2])
         reply_parts.append(f"同时需要说明：{risk_text}")
     reply_parts.append("建议补充确认上述问题后，再由相关负责人给出正式方案和承诺。")
