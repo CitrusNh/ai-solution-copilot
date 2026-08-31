@@ -6,6 +6,7 @@ import streamlit as st
 
 from src.ingest import IngestionError, parse_document
 from src.retrieve import load_markdown_chunks, search_chunks
+from src.solution_card import build_solution_card
 
 
 st.set_page_config(
@@ -19,7 +20,7 @@ st.caption("MVP 0.1 · 先把客户需求、产品资料与可验证结论连接
 
 with st.sidebar:
     st.header("项目状态")
-    st.success("MVP 第 2 个功能：文件上传与本地检索已上线")
+    st.success("MVP 第 3 个功能：本地售前分析卡已上线")
     st.write("当前不调用大模型，不产生 API 费用。")
 
 st.subheader("今天要解决的问题")
@@ -70,7 +71,7 @@ with st.form("search_form"):
         "输入客户问题",
         placeholder="例如：专业版是否支持审计日志？",
     )
-    submitted = st.form_submit_button("检索资料", type="primary")
+    submitted = st.form_submit_button("生成售前分析卡", type="primary")
 
 st.caption("可以尝试：私有化部署怎么收费？／最多支持多少用户？／是否支持 BYOK？")
 
@@ -82,6 +83,41 @@ if submitted:
         if not results:
             st.warning("当前资料中没有找到相关内容，请换一种问法或交给人工确认。")
         else:
+            card = build_solution_card(query, results)
+
+            st.markdown("### 售前分析卡")
+            with st.container(border=True):
+                st.markdown("#### 客户需求摘要")
+                st.write(card.request_summary)
+                if card.confidence == "资料可支持初步回复":
+                    st.success(card.confidence)
+                else:
+                    st.warning(card.confidence)
+
+                st.markdown("#### 匹配能力")
+                if card.matched_capabilities:
+                    for item in card.matched_capabilities:
+                        st.markdown(f"- {item.text}")
+                        st.caption(f"来源：{item.source} · {item.heading}")
+                else:
+                    st.write("当前资料中没有可确认的产品能力。")
+
+                st.markdown("#### 限制与风险")
+                if card.constraints_and_risks:
+                    for item in card.constraints_and_risks:
+                        st.markdown(f"- {item.text}")
+                        st.caption(f"来源：{item.source} · {item.heading}")
+                else:
+                    st.write("当前检索片段中没有明确写出的限制；这不代表不存在限制。")
+
+                st.markdown("#### 建议继续询问客户")
+                for question in card.open_questions:
+                    st.markdown(f"- {question}")
+
+                st.markdown("#### 售前回复草稿")
+                st.write(card.reply_draft)
+
+            st.markdown("### 检索证据")
             st.markdown("### 检索结果")
             for rank, result in enumerate(results, start=1):
                 with st.container(border=True):
@@ -91,7 +127,4 @@ if submitted:
                     )
                     st.write(result.content)
 
-            st.info(
-                "现在系统只负责找资料，还不会自动生成售前方案。"
-                "下一阶段才会把检索结果交给大模型，并要求每个结论引用来源。"
-            )
+            st.info("当前分析卡由本地规则生成，是后续大模型版本的对照基线。")

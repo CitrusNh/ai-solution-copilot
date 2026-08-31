@@ -97,3 +97,4 @@ def test_streamlit_search_flow_shows_a_source():
     assert any(
         "security_faq.md" in caption.value for caption in app.caption
     )
+    assert any("售前分析卡" in markdown.value for markdown in app.markdown)
