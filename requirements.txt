@@ -1,0 +1,9 @@
+streamlit
+openai
+python-dotenv
+pydantic
+pypdf
+pandas
+scikit-learn
+pytest
+
