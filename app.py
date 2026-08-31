@@ -111,14 +111,13 @@ if submitted:
                     st.write("当前检索片段中没有明确写出的限制；这不代表不存在限制。")
 
                 st.markdown("#### 建议继续询问客户")
-                for question in card.open_questions:
-                    st.markdown(f"- {question}")
+                for index, question in enumerate(card.open_questions, start=1):
+                    st.write(f"{index}. {question}")
 
                 st.markdown("#### 售前回复草稿")
                 st.write(card.reply_draft)
 
             st.markdown("### 检索证据")
-            st.markdown("### 检索结果")
             for rank, result in enumerate(results, start=1):
                 with st.container(border=True):
                     st.markdown(f"**{rank}. {result.heading}**")

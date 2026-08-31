@@ -26,9 +26,11 @@ def test_byok_card_does_not_invent_support():
     card = build_solution_card("是否支持BYOK？", results)
 
     assert card.constraints_and_risks
+    assert card.matched_capabilities == ()
     assert any("BYOK" in item.text for item in card.constraints_and_risks)
     assert "支持BYOK" not in card.reply_draft.replace("不支持BYOK", "")
     assert "不能向客户作出承诺" in card.reply_draft
+    assert "。；" not in card.reply_draft
 
 
 def test_training_card_surfaces_excluded_services():
@@ -47,4 +49,3 @@ def test_training_card_surfaces_excluded_services():
 
     assert any("不包含服务器采购" in item.text for item in card.constraints_and_risks)
     assert "另行评估" in card.reply_draft
-

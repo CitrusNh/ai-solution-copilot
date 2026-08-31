@@ -66,6 +66,13 @@ def is_risk_statement(text: str) -> bool:
     return any(keyword in text for keyword in RISK_KEYWORDS)
 
 
+def join_statements(statements: list[GroundedStatement]) -> str:
+    """Join source statements without producing duplicated punctuation."""
+
+    cleaned = [item.text.rstrip("。！？；") for item in statements if item.text.strip()]
+    return "；".join(cleaned) + ("。" if cleaned else "")
+
+
 def discovery_questions(query: str) -> tuple[str, ...]:
     """Select a small presales discovery checklist from the request topic."""
 
@@ -141,14 +148,19 @@ def build_solution_card(
     has_grounded_answer = bool(capabilities) and not has_blocking_risk
     confidence = "资料可支持初步回复" if has_grounded_answer else "资料不足，需要人工确认"
 
+    if has_blocking_risk:
+        # General product descriptions are not evidence that the blocked
+        # requirement itself is supported. Hide them from the match section.
+        capabilities = []
+
     if has_grounded_answer:
-        confirmed_text = "；".join(item.text for item in capabilities[:2])
+        confirmed_text = join_statements(capabilities[:2])
         reply_parts = [f"根据当前产品资料，可初步确认：{confirmed_text}"]
     else:
         reply_parts = ["当前产品资料不足以确认该需求，暂时不能向客户作出承诺。"]
 
     if risks:
-        risk_text = "；".join(item.text for item in risks[:2])
+        risk_text = join_statements(risks[:2])
         reply_parts.append(f"同时需要说明：{risk_text}")
     reply_parts.append("建议补充确认上述问题后，再由相关负责人给出正式方案和承诺。")
 
