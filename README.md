@@ -39,6 +39,12 @@
 
 浏览器打开 `http://localhost:8501`。
 
+## 部署公网 Demo
+
+项目已经按 Streamlit Community Cloud 的入口结构准备好。完整步骤见 [DEPLOY.md](DEPLOY.md)。部署后会得到一个朋友可以直接打开的 `https://*.streamlit.app` 地址。
+
+公网版本目前只适合演示资料，不要上传企业机密；项目没有登录、权限和云端数据库。
+
 可以上传 `examples/upload_demo.txt`，然后查询“深圳现场培训多少钱？”。
 
 ## 运行本地基线评测
