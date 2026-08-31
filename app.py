@@ -4,6 +4,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.ingest import IngestionError, parse_document
 from src.retrieve import load_markdown_chunks, search_chunks
 
 
@@ -18,7 +19,7 @@ st.caption("MVP 0.1 · 先把客户需求、产品资料与可验证结论连接
 
 with st.sidebar:
     st.header("项目状态")
-    st.success("MVP 第 1 个功能：本地资料检索已上线")
+    st.success("MVP 第 2 个功能：文件上传与本地检索已上线")
     st.write("当前不调用大模型，不产生 API 费用。")
 
 st.subheader("今天要解决的问题")
@@ -27,11 +28,42 @@ st.write(
 )
 
 data_dir = Path(__file__).parent / "data" / "demo"
-chunks = load_markdown_chunks(data_dir)
+demo_chunks = load_markdown_chunks(data_dir)
 
 st.divider()
-st.subheader("在演示产品资料中检索")
-st.write(f"已加载 **{len(chunks)}** 个资料片段，来自 **3** 份产品文档。")
+st.subheader("1. 准备知识资料")
+uploaded_files = st.file_uploader(
+    "上传补充产品资料",
+    type=["md", "txt", "pdf"],
+    accept_multiple_files=True,
+    help="支持 Markdown、TXT、可提取文字的 PDF；每个文件不超过 10MB。文件只在当前会话中处理。",
+)
+
+uploaded_chunks = []
+upload_errors = []
+for uploaded_file in uploaded_files:
+    try:
+        uploaded_chunks.extend(
+            parse_document(uploaded_file.name, uploaded_file.getvalue())
+        )
+    except IngestionError as exc:
+        upload_errors.append(f"{uploaded_file.name}：{exc}")
+
+if uploaded_files and not upload_errors:
+    st.success(
+        f"成功解析 {len(uploaded_files)} 个上传文件，得到 {len(uploaded_chunks)} 个资料片段。"
+    )
+for error in upload_errors:
+    st.error(error)
+
+chunks = [*demo_chunks, *uploaded_chunks]
+source_count = len({chunk.source for chunk in chunks})
+
+st.divider()
+st.subheader("2. 检索知识资料")
+st.write(
+    f"当前共加载 **{len(chunks)}** 个资料片段，来自 **{source_count}** 份文档。"
+)
 
 with st.form("search_form"):
     query = st.text_input(

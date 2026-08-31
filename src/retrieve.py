@@ -28,10 +28,9 @@ class SearchResult:
     score: float
 
 
-def split_markdown(path: Path) -> list[DocumentChunk]:
-    """Split one Markdown file by headings while preserving source metadata."""
+def split_markdown_text(text: str, source: str) -> list[DocumentChunk]:
+    """Split Markdown text by headings while preserving source metadata."""
 
-    text = path.read_text(encoding="utf-8")
     chunks: list[DocumentChunk] = []
     heading = "文档开头"
     lines: list[str] = []
@@ -41,7 +40,7 @@ def split_markdown(path: Path) -> list[DocumentChunk]:
         if content:
             chunks.append(
                 DocumentChunk(
-                    source=path.name,
+                    source=source,
                     heading=heading,
                     content=content,
                 )
@@ -57,6 +56,13 @@ def split_markdown(path: Path) -> list[DocumentChunk]:
 
     save_chunk()
     return chunks
+
+
+def split_markdown(path: Path) -> list[DocumentChunk]:
+    """Load and split one UTF-8 Markdown file."""
+
+    text = path.read_text(encoding="utf-8")
+    return split_markdown_text(text, path.name)
 
 
 def load_markdown_chunks(data_dir: Path) -> list[DocumentChunk]:
@@ -109,4 +115,3 @@ def search_chunks(
             break
 
     return results
-
