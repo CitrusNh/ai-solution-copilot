@@ -87,13 +87,16 @@ def normalize_for_match(text: str) -> str:
     return re.sub(r"\s+", "", text).casefold()
 
 
-def evaluate_case(case: dict[str, Any], chunks: list, variant: str) -> CaseResult:
-    """Evaluate one case with deterministic checks."""
+def grade_case(
+    case: dict[str, Any],
+    results: list,
+    variant: str,
+    latency_ms: float,
+    cost_usd: float = 0.0,
+) -> CaseResult:
+    """Apply the frozen deterministic rubric to supplied search results."""
 
-    started = time.perf_counter()
-    results = search_chunks(case["query"], chunks, top_k=3)
     card = build_solution_card(case["query"], results)
-    latency_ms = (time.perf_counter() - started) * 1000
 
     actual_sources = [result.source for result in results]
     expected_sources = set(case["expected_sources"])
@@ -138,12 +141,21 @@ def evaluate_case(case: dict[str, Any], chunks: list, variant: str) -> CaseResul
         confidence_correct=confidence_correct,
         required_terms_found=required_terms_found,
         latency_ms=round(latency_ms, 3),
-        cost_usd=0.0,
+        cost_usd=cost_usd,
         query=case["query"],
         actual_top_sources=actual_sources,
         actual_confidence=card.confidence,
         missing_terms=missing_terms,
     )
+
+
+def evaluate_case(case: dict[str, Any], chunks: list, variant: str) -> CaseResult:
+    """Evaluate one local keyword-search case."""
+
+    started = time.perf_counter()
+    results = search_chunks(case["query"], chunks, top_k=3)
+    latency_ms = (time.perf_counter() - started) * 1000
+    return grade_case(case, results, variant, latency_ms)
 
 
 def run_evaluation(

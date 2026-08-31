@@ -34,6 +34,16 @@
 
 评测覆盖来源命中、Top-1、置信状态、关键事实和未知安全需求拒绝承诺。
 
+## 运行Embedding对比评测
+
+配置环境变量后运行：
+
+```powershell
+.\.venv\Scripts\python.exe eval\evaluate_embeddings.py --mode hybrid --budget-cny 1
+```
+
+文档向量和查询向量缓存在 `data/cache/`，不会提交到Git。程序会记录Token、API调用次数和费用，并在预计超过预算前停止。
+
 ## 安全说明
 
 - API Key 只放在本地 `.env` 文件中。

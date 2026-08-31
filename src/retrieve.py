@@ -85,18 +85,39 @@ def search_chunks(
     without requiring a tokenizer or a paid embedding API.
     """
 
-    cleaned_query = query.strip()
-    if not cleaned_query or not chunks or top_k <= 0:
-        return []
+    scores = score_keyword_chunks(query, chunks)
+    return rank_chunks(chunks, scores, top_k=top_k)
 
-    searchable_texts = [
-        f"{chunk.heading}\n{chunk.content}" for chunk in chunks
-    ]
+
+def score_keyword_chunks(
+    query: str,
+    chunks: list[DocumentChunk],
+) -> list[float]:
+    """Return character n-gram TF-IDF scores in original chunk order."""
+
+    cleaned_query = query.strip()
+    if not cleaned_query or not chunks:
+        return [0.0] * len(chunks)
+
+    searchable_texts = [f"{chunk.heading}\n{chunk.content}" for chunk in chunks]
     vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(1, 3))
     matrix = vectorizer.fit_transform([*searchable_texts, cleaned_query])
-    scores = cosine_similarity(matrix[-1], matrix[:-1]).ravel()
+    return [float(score) for score in cosine_similarity(matrix[-1], matrix[:-1]).ravel()]
 
-    ranked_indices = scores.argsort()[::-1]
+
+def rank_chunks(
+    chunks: list[DocumentChunk],
+    scores: list[float],
+    top_k: int = 3,
+) -> list[SearchResult]:
+    """Convert aligned numeric scores into ranked search results."""
+
+    if top_k <= 0 or not chunks:
+        return []
+    if len(chunks) != len(scores):
+        raise ValueError("chunks 与 scores 数量必须一致。")
+
+    ranked_indices = sorted(range(len(scores)), key=scores.__getitem__, reverse=True)
     results: list[SearchResult] = []
     for index in ranked_indices:
         score = float(scores[index])
