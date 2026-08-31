@@ -26,6 +26,14 @@
 
 可以上传 `examples/upload_demo.txt`，然后查询“深圳现场培训多少钱？”。
 
+## 运行本地基线评测
+
+```powershell
+.\.venv\Scripts\python.exe eval\evaluate.py
+```
+
+评测覆盖来源命中、Top-1、置信状态、关键事实和未知安全需求拒绝承诺。
+
 ## 安全说明
 
 - API Key 只放在本地 `.env` 文件中。

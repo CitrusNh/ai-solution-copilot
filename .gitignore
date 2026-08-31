@@ -5,6 +5,4 @@ __pycache__/
 *.db
 data/uploads/
 outputs/
-.streamlit/
 .pytest_cache/
-

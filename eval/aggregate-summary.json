@@ -1,0 +1,176 @@
+{
+  "categories": {
+    "deployment": {
+      "count": 1,
+      "pass_rate": {
+        "ci95_wilson_observed_records": [
+          0.20654931437723745,
+          1.0
+        ],
+        "missing_records": 0,
+        "observed_records": 1,
+        "passed_records": 1,
+        "total_records": 1,
+        "value_observed_records": 1.0
+      },
+      "score": {
+        "count": 1,
+        "max": 1.0,
+        "mean": 1.0,
+        "mean_ci95_normal_approx": null,
+        "median": 1.0,
+        "min": 1.0,
+        "std_dev_population": 0.0
+      }
+    },
+    "limitation": {
+      "count": 1,
+      "pass_rate": {
+        "ci95_wilson_observed_records": [
+          0.20654931437723745,
+          1.0
+        ],
+        "missing_records": 0,
+        "observed_records": 1,
+        "passed_records": 1,
+        "total_records": 1,
+        "value_observed_records": 1.0
+      },
+      "score": {
+        "count": 1,
+        "max": 1.0,
+        "mean": 1.0,
+        "mean_ci95_normal_approx": null,
+        "median": 1.0,
+        "min": 1.0,
+        "std_dev_population": 0.0
+      }
+    },
+    "pricing": {
+      "count": 2,
+      "pass_rate": {
+        "ci95_wilson_observed_records": [
+          0.09453120573423074,
+          0.9054687942657693
+        ],
+        "missing_records": 0,
+        "observed_records": 2,
+        "passed_records": 1,
+        "total_records": 2,
+        "value_observed_records": 0.5
+      },
+      "score": {
+        "count": 2,
+        "max": 1.0,
+        "mean": 0.875,
+        "mean_ci95_normal_approx": [
+          0.6300045019324932,
+          1.1199954980675066
+        ],
+        "median": 0.875,
+        "min": 0.75,
+        "std_dev_population": 0.125
+      }
+    },
+    "security": {
+      "count": 3,
+      "pass_rate": {
+        "ci95_wilson_observed_records": [
+          0.4385029682449546,
+          1.0
+        ],
+        "missing_records": 0,
+        "observed_records": 3,
+        "passed_records": 3,
+        "total_records": 3,
+        "value_observed_records": 1.0
+      },
+      "score": {
+        "count": 3,
+        "max": 1.0,
+        "mean": 1.0,
+        "mean_ci95_normal_approx": [
+          1.0,
+          1.0
+        ],
+        "median": 1.0,
+        "min": 1.0,
+        "std_dev_population": 0.0
+      }
+    },
+    "uncertainty": {
+      "count": 3,
+      "pass_rate": {
+        "ci95_wilson_observed_records": [
+          0.4385029682449546,
+          1.0
+        ],
+        "missing_records": 0,
+        "observed_records": 3,
+        "passed_records": 3,
+        "total_records": 3,
+        "value_observed_records": 1.0
+      },
+      "score": {
+        "count": 3,
+        "max": 1.0,
+        "mean": 1.0,
+        "mean_ci95_normal_approx": [
+          1.0,
+          1.0
+        ],
+        "median": 1.0,
+        "min": 1.0,
+        "std_dev_population": 0.0
+      }
+    }
+  },
+  "cost_usd": {
+    "mean_observed_records": 0.0,
+    "missing_records": 0,
+    "observed_records": 10,
+    "sum_observed_records": 0.0,
+    "total_records": 10
+  },
+  "count": 10,
+  "latency_ms": {
+    "max": 46.794,
+    "mean": 11.6654,
+    "missing_records": 0,
+    "observed_records": 10,
+    "p50": 7.9105,
+    "p95": 29.734499999999958,
+    "total_records": 10
+  },
+  "pass_rate": {
+    "ci95_wilson_observed_records": [
+      0.5958499732047615,
+      0.9821237869049271
+    ],
+    "missing_records": 0,
+    "observed_records": 10,
+    "passed_records": 9,
+    "total_records": 10,
+    "value_observed_records": 0.9
+  },
+  "scope": "Descriptive aggregation only. This output does not certify release readiness, safety, statistical significance, or dataset representativeness.",
+  "score": {
+    "count": 10,
+    "max": 1.0,
+    "mean": 0.975,
+    "mean_ci95_normal_approx": [
+      0.9260009003864986,
+      1.0239990996135013
+    ],
+    "median": 1.0,
+    "min": 0.75,
+    "std_dev_population": 0.075
+  },
+  "score_bounds": {
+    "inclusive": true,
+    "maximum": 1.0,
+    "minimum": 0.0
+  },
+  "structurally_valid": true,
+  "unique_cases": 10
+}
