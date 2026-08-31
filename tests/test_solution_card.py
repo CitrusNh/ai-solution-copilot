@@ -49,3 +49,26 @@ def test_training_card_surfaces_excluded_services():
 
     assert any("不包含服务器采购" in item.text for item in card.constraints_and_risks)
     assert "另行评估" in card.reply_draft
+
+
+def test_user_limit_card_hides_unrelated_permission_details():
+    chunks = load_markdown_chunks(DATA_DIR)
+    results = search_chunks("最多支持多少用户？", chunks)
+
+    card = build_solution_card("最多支持多少用户？", results)
+
+    matched_text = "\n".join(item.text for item in card.matched_capabilities)
+    assert "100 名用户" in matched_text
+    assert "500 名用户" in matched_text
+    assert "用户角色控制访问权限" not in matched_text
+
+
+def test_private_deployment_price_is_presented_as_an_estimate_required():
+    chunks = load_markdown_chunks(DATA_DIR)
+    results = search_chunks("私有化部署怎么收费？", chunks)
+
+    card = build_solution_card("私有化部署怎么收费？", results)
+
+    assert card.confidence == "资料可支持初步回复"
+    assert any("单独评估" in item.text for item in card.constraints_and_risks)
+    assert "单独评估" in card.reply_draft

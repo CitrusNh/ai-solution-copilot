@@ -9,6 +9,20 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
+INTENT_TERMS = {
+    "pricing": ("价格", "多少钱", "收费", "报价", "费用"),
+    "users": ("用户", "人数", "上限", "席位"),
+    "deployment": ("部署", "私有化", "SaaS", "公有云"),
+    "audit": ("审计", "日志"),
+    "permissions": ("权限", "角色", "部门", "组织"),
+    "retention": ("保留", "周期", "多久"),
+    "offline": ("离线", "客户端"),
+    "compliance": ("BYOK", "等保", "认证", "驻留", "境内", "密钥"),
+}
+
+INTENT_BOOST = 0.12
+
+
 @dataclass(frozen=True)
 class DocumentChunk:
     """A searchable section from one source document."""
@@ -102,7 +116,31 @@ def score_keyword_chunks(
     searchable_texts = [f"{chunk.heading}\n{chunk.content}" for chunk in chunks]
     vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(1, 3))
     matrix = vectorizer.fit_transform([*searchable_texts, cleaned_query])
-    return [float(score) for score in cosine_similarity(matrix[-1], matrix[:-1]).ravel()]
+    base_scores = [
+        float(score) for score in cosine_similarity(matrix[-1], matrix[:-1]).ravel()
+    ]
+
+    # A small, interpretable intent boost fixes short Chinese questions where
+    # generic words such as “专业版” otherwise outweigh the actual request for
+    # price, user limits, deployment, or compliance evidence.
+    query_upper = cleaned_query.upper()
+    active_intents = {
+        intent
+        for intent, terms in INTENT_TERMS.items()
+        if any(term.upper() in query_upper for term in terms)
+    }
+    if not active_intents:
+        return base_scores
+
+    scores: list[float] = []
+    for chunk, base_score in zip(chunks, base_scores):
+        chunk_upper = f"{chunk.heading}\n{chunk.content}".upper()
+        matched_intents = sum(
+            any(term.upper() in chunk_upper for term in INTENT_TERMS[intent])
+            for intent in active_intents
+        )
+        scores.append(base_score + matched_intents * INTENT_BOOST)
+    return scores
 
 
 def rank_chunks(

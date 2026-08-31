@@ -30,6 +30,24 @@ BLOCKING_RISK_KEYWORDS = (
     "不得直接承诺",
 )
 
+QUERY_RELEVANCE_TERMS = (
+    ("价格", "多少钱", "收费", "报价", "费用", "元"),
+    ("人数", "上限", "席位", "名用户", "多少用户"),
+    ("私有化", "部署", "服务器", "运维", "公有云", "SaaS"),
+    ("审计", "日志"),
+    ("权限", "角色", "部门", "组织", "知识空间"),
+    ("保留", "周期", "天"),
+    ("离线", "客户端"),
+    ("BYOK", "密钥", "等保", "认证", "驻留", "境内", "合规"),
+    ("培训", "学员", "现场", "驻场"),
+)
+
+RISK_CONTEXT_TERMS = (
+    "需要人工确认",
+    "不得自行推断",
+    "不得直接承诺",
+)
+
 
 @dataclass(frozen=True)
 class GroundedStatement:
@@ -64,6 +82,26 @@ def is_risk_statement(text: str) -> bool:
     """Return whether a source sentence describes a limit or uncertainty."""
 
     return any(keyword in text for keyword in RISK_KEYWORDS)
+
+
+def relevant_to_query(query: str, text: str) -> bool:
+    """Keep statements that address at least one explicit request intent."""
+
+    if any(term in text for term in RISK_CONTEXT_TERMS):
+        return True
+
+    query_upper = query.upper()
+    text_upper = text.upper()
+    active_groups = [
+        group
+        for group in QUERY_RELEVANCE_TERMS
+        if any(term.upper() in query_upper for term in group)
+    ]
+    if not active_groups:
+        return True
+    return any(
+        any(term.upper() in text_upper for term in group) for group in active_groups
+    )
 
 
 def join_statements(statements: list[GroundedStatement]) -> str:
@@ -131,6 +169,8 @@ def build_solution_card(
             if sentence in seen:
                 continue
             seen.add(sentence)
+            if not relevant_to_query(cleaned_query, sentence):
+                continue
             statement = GroundedStatement(
                 text=sentence,
                 source=result.source,
@@ -145,7 +185,8 @@ def build_solution_card(
             if len(target) < max_statements:
                 target.append(statement)
 
-    has_grounded_answer = bool(capabilities) and not has_blocking_risk
+    has_explicit_answer = bool(capabilities or risks) and not has_blocking_risk
+    has_grounded_answer = has_explicit_answer
     confidence = "资料可支持初步回复" if has_grounded_answer else "资料不足，需要人工确认"
 
     if has_blocking_risk:

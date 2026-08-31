@@ -30,6 +30,15 @@ def test_price_query_finds_pricing_document_first():
     assert results[0].source == "pricing_and_limits.md"
 
 
+def test_price_and_user_limit_query_finds_pricing_document_first():
+    chunks = load_markdown_chunks(DATA_DIR)
+
+    results = search_chunks("专业版价格和用户上限是多少？", chunks)
+
+    assert results
+    assert results[0].source == "pricing_and_limits.md"
+
+
 def test_audit_query_finds_security_faq_first():
     chunks = load_markdown_chunks(DATA_DIR)
 
