@@ -112,6 +112,26 @@ def test_chat_analysis_repairs_missing_reply_citation_once():
     assert analysis.completion_tokens == 160
 
 
+def test_chat_analysis_repairs_missing_reply_citation_without_third_request():
+    chunks = load_markdown_chunks(DATA_DIR)
+    results = search_chunks("是否支持 BYOK？", chunks)
+    card = build_solution_card("是否支持 BYOK？", results)
+    payload_without_reply_citation = {
+        "analysis_summary": "资料没有承诺 BYOK，需要人工确认。[D1]",
+        "customer_reply_draft": "当前资料不足，暂时不能承诺，请人工确认。",
+        "risks": ["存在错误承诺风险。[D1]"],
+        "follow_up_questions": [],
+        "citations": ["D1"],
+    }
+    client = FakeClient([payload_without_reply_citation, payload_without_reply_citation])
+    service = ChatAnalysisService(client=client, model="deepseek-chat")
+
+    analysis = service.generate("是否支持 BYOK？", card, results)
+
+    assert client.completions.calls == 2
+    assert analysis.customer_reply_draft.endswith("[D1]")
+
+
 def test_chat_analysis_rejects_removed_human_confirmation_boundary():
     raw = json.dumps(
         {

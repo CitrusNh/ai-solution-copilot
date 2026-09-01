@@ -158,6 +158,71 @@ def validate_analysis_payload(
     return payload
 
 
+def _repair_missing_reply_citation(
+    raw_content: str,
+    *,
+    allowed_citations: set[str],
+    require_blocking_language: bool,
+) -> LLMAnalysisPayload | None:
+    """Apply a narrow citation repair for providers that omit an inline tag.
+
+    This is only allowed when every citation already emitted by the model is
+    valid and an internal citation appears elsewhere in the response. It does
+    not repair unknown sources, web-only claims, or missing risk boundaries.
+    """
+
+    try:
+        raw_payload = json.loads(_strip_json_wrapper(raw_content))
+        payload = LLMAnalysisPayload.model_validate(raw_payload)
+    except (json.JSONDecodeError, ValidationError, LLMAnalysisError):
+        return None
+
+    listed = {item.strip("[] ") for item in payload.citations}
+    cited_in_text = set(
+        CITATION_PATTERN.findall(
+            "\n".join(
+                [
+                    payload.analysis_summary,
+                    *payload.risks,
+                    *payload.follow_up_questions,
+                ]
+            )
+        )
+    )
+    reply_citations = set(CITATION_PATTERN.findall(payload.customer_reply_draft))
+    if (
+        reply_citations
+        or not listed
+        or not cited_in_text
+        or listed != cited_in_text
+        or not cited_in_text.issubset(allowed_citations)
+    ):
+        return None
+
+    internal_citation = next(
+        (citation for citation in sorted(cited_in_text) if citation.startswith("D")),
+        None,
+    )
+    if internal_citation is None:
+        return None
+
+    repaired_payload = payload.model_copy(
+        update={
+            "customer_reply_draft": (
+                f"{payload.customer_reply_draft.rstrip()} [{internal_citation}]"
+            )
+        }
+    )
+    try:
+        return validate_analysis_payload(
+            repaired_payload.model_dump_json(),
+            allowed_citations=allowed_citations,
+            require_blocking_language=require_blocking_language,
+        )
+    except LLMAnalysisError:
+        return None
+
+
 class ChatAnalysisService:
     """Generate one grounded analysis per user action through Chat Completions."""
 
@@ -268,11 +333,20 @@ class ChatAnalysisService:
             )
             prompt_tokens += repaired_prompt_tokens
             completion_tokens += repaired_completion_tokens
-            payload = validate_analysis_payload(
-                repaired_content,
-                allowed_citations=allowed,
-                require_blocking_language=require_blocking,
-            )
+            try:
+                payload = validate_analysis_payload(
+                    repaired_content,
+                    allowed_citations=allowed,
+                    require_blocking_language=require_blocking,
+                )
+            except LLMAnalysisError as second_error:
+                payload = _repair_missing_reply_citation(
+                    repaired_content,
+                    allowed_citations=allowed,
+                    require_blocking_language=require_blocking,
+                )
+                if payload is None:
+                    raise second_error
 
         return LLMAnalysis(
             analysis_summary=payload.analysis_summary,
