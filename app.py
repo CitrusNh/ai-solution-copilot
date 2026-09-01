@@ -34,7 +34,12 @@ st.set_page_config(
 )
 
 st.title("AI 企业研究与售前方案助手")
-st.caption("MVP 1.0 · 内部资料检索、联网研究、扫描件 OCR 与证据约束 AI 分析")
+st.caption("把客户问题变成：有来源的产品结论、风险提示和售前回复草稿")
+
+st.info(
+    "第一次使用不用上传文件，系统已经准备了 3 份演示资料。\n\n"
+    "**只需 3 步：** ① 输入客户问题 → ② 点击“生成售前分析卡” → ③ 查看结论、来源和回复草稿。"
+)
 
 project_root = Path(__file__).parent
 feedback_path = project_root / "data" / "feedback" / "feedback.csv"
@@ -55,35 +60,46 @@ with st.sidebar:
     else:
         st.warning("聊天模型尚未配置；当前使用本地规则分析。")
 
-st.subheader("这个产品服务谁？")
-persona, scenario, value = st.columns(3)
-with persona:
-    st.markdown("**使用者**")
-    st.write("B2B AI/SaaS 公司的售前、解决方案顾问和产品运营。")
-with scenario:
-    st.markdown("**使用场景**")
-    st.write("客户提出价格、部署、安全或功能问题，需要快速查阅多份产品资料。")
-with value:
-    st.markdown("**产品价值**")
-    st.write("生成可追溯的回复草稿；资料没有承诺时明确转人工，降低错误承诺风险。")
-
-with st.expander("查看一个真实使用例子"):
-    st.write(
-        "售前收到客户问题“是否支持 BYOK？”，上传或选择公司产品资料后发起检索。"
-        "系统找到安全 FAQ，发现资料没有承诺 BYOK，于是提示人工确认，而不是编造支持结论。"
-    )
-
 data_dir = project_root / "data" / "demo"
 demo_chunks = load_markdown_chunks(data_dir)
 
 st.divider()
-st.subheader("1. 准备知识资料")
-uploaded_files = st.file_uploader(
-    "上传补充产品资料",
-    type=["md", "txt", "pdf"],
-    accept_multiple_files=True,
-    help="支持 Markdown、TXT、普通或扫描版 PDF；每个文件不超过 10MB，最多识别20个扫描页。文件只在当前会话中处理。",
-)
+st.subheader("1. 输入客户问题")
+st.caption("可直接使用内置演示资料；如果要测试自己的产品，再补充上传资料。")
+
+with st.form("search_form"):
+    query = st.text_input(
+        "客户问题",
+        placeholder="例如：专业版是否支持审计日志？",
+        help="把客户原话直接粘贴进来即可，例如价格、部署、安全或功能问题。",
+    )
+    web_enabled = st.checkbox(
+        "联网搜索公开资料",
+        value=False,
+        help="只把当前问题发送给公开搜索服务，不上传企业文档。互联网资料不会被用来证明本产品能力。",
+    )
+    ai_enabled = st.checkbox(
+        "使用聊天模型增强分析",
+        value=False,
+        disabled=not chat_ready,
+        help="会把客户问题和命中的内部资料片段发送给部署者配置的模型服务商。",
+    )
+    submitted = st.form_submit_button("生成售前分析卡", type="primary")
+
+st.caption("推荐先试：私有化部署怎么收费？／最多支持多少用户？／是否支持 BYOK？")
+st.caption("提交后，结果会显示在本页下方：先看结论，再看来源、风险和回复草稿。")
+
+with st.expander("2. 可选：补充企业资料（第一次使用可以跳过）"):
+    st.caption(
+        "上传后会与内置演示资料一起检索。支持 Markdown、TXT、普通或扫描版 PDF；"
+        "每个文件不超过 10MB，扫描 PDF 最多识别 20 页。文件只在当前会话中处理。"
+    )
+    uploaded_files = st.file_uploader(
+        "上传产品说明、价格表或安全 FAQ",
+        type=["md", "txt", "pdf"],
+        accept_multiple_files=True,
+        help="上传资料不会写入 Git，也不会自动发送给联网搜索服务。",
+    )
 
 uploaded_chunks = []
 upload_errors = []
@@ -109,30 +125,10 @@ chunks = [*demo_chunks, *uploaded_chunks]
 source_count = len({chunk.source for chunk in chunks})
 
 st.divider()
-st.subheader("2. 检索知识资料")
+st.subheader("当前资料状态")
 st.write(
     f"当前共加载 **{len(chunks)}** 个资料片段，来自 **{source_count}** 份文档。"
 )
-
-with st.form("search_form"):
-    query = st.text_input(
-        "输入客户问题",
-        placeholder="例如：专业版是否支持审计日志？",
-    )
-    web_enabled = st.checkbox(
-        "联网搜索公开资料",
-        value=False,
-        help="只把当前问题发送给公开搜索服务，不上传企业文档。互联网资料不会被用来证明本产品能力。",
-    )
-    ai_enabled = st.checkbox(
-        "使用聊天模型增强分析",
-        value=False,
-        disabled=not chat_ready,
-        help="会把客户问题和命中的内部资料片段发送给部署者配置的模型服务商。",
-    )
-    submitted = st.form_submit_button("生成售前分析卡", type="primary")
-
-st.caption("可以尝试：私有化部署怎么收费？／最多支持多少用户？／是否支持 BYOK？")
 
 if submitted:
     if not query.strip():

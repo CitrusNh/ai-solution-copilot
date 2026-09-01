@@ -47,3 +47,12 @@ def test_final_report_keeps_development_scope_explicit():
 
     assert "100%（10/10）" in report
     assert "不代表真实企业客户准确率" in report
+
+
+def test_app_first_use_flow_makes_upload_optional_and_explains_results():
+    app = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+
+    assert "第一次使用不用上传文件" in app
+    assert 'st.subheader("1. 输入客户问题")' in app
+    assert "2. 可选：补充企业资料（第一次使用可以跳过）" in app
+    assert "结果会显示在本页下方" in app
