@@ -265,7 +265,11 @@ class ChatAnalysisService:
         self.client = client
 
     def _create_completion(
-        self, messages: list[dict[str, str]], *, json_mode: bool = True
+        self,
+        messages: list[dict[str, str]],
+        *,
+        json_mode: bool = True,
+        max_tokens: int = 1000,
     ) -> Any:
         """Request one JSON response from the configured chat provider."""
 
@@ -274,7 +278,7 @@ class ChatAnalysisService:
                 "model": self.model,
                 "messages": messages,
                 "temperature": 0.1,
-                "max_tokens": 1000,
+                "max_tokens": max_tokens,
             }
             if json_mode:
                 kwargs["response_format"] = {"type": "json_object"}
@@ -318,6 +322,29 @@ class ChatAnalysisService:
                     "customer_reply_draft 必须包含至少一个 [D1] 内部资料引用；"
                     "citations 必须与所有文字字段中的 [D1]/[W1] 引用完全一致；"
                     "不得改变系统结论或人工确认边界。"
+                ),
+            },
+        ]
+
+    @staticmethod
+    def _strict_retry_messages(
+        messages: list[dict[str, str]], error: LLMAnalysisError
+    ) -> list[dict[str, str]]:
+        """Retry from clean context when a provider keeps emitting invalid text."""
+
+        return [
+            *messages,
+            {
+                "role": "user",
+                "content": (
+                    f"此前结果未通过校验：{error}。重新独立回答，不要复述此前内容。"
+                    "只输出一个简短的合法 JSON 对象，必须以 { 开始、以 } 结束。"
+                    "使用且只使用以下字段：analysis_summary（字符串）、"
+                    "customer_reply_draft（字符串）、risks（字符串数组）、"
+                    "follow_up_questions（字符串数组）、citations（证据编号数组）。"
+                    "所有文字合计不超过 800 个汉字。customer_reply_draft 必须包含 [D1]；"
+                    "citations 必须与文字中出现的证据编号完全一致。"
+                    "资料不足时必须明确不能承诺并需要人工确认。"
                 ),
             },
         ]
@@ -371,10 +398,12 @@ class ChatAnalysisService:
                 )
                 if payload is None:
                     # Some OpenAI-compatible gateways ignore or reject JSON mode.
-                    # Make one final plain request, then apply the same validator.
+                    # Retry from clean context so truncated provider output is not
+                    # copied into the prompt, then apply the same validator.
                     plain_response = self._create_completion(
-                        self._repair_messages(messages, repaired_content, second_error),
+                        self._strict_retry_messages(messages, second_error),
                         json_mode=False,
+                        max_tokens=2000,
                     )
                     plain_content = self._response_content(plain_response)
                     plain_prompt_tokens, plain_completion_tokens = self._usage_tokens(

@@ -187,6 +187,9 @@ def test_chat_analysis_falls_back_to_plain_request_after_two_invalid_json_result
     assert "response_format" in client.completions.call_kwargs[0]
     assert "response_format" in client.completions.call_kwargs[1]
     assert "response_format" not in client.completions.call_kwargs[2]
+    assert client.completions.call_kwargs[2]["max_tokens"] == 2000
+    assert len(client.completions.call_kwargs[2]["messages"]) == 3
+    assert "仍然不是 JSON" not in str(client.completions.call_kwargs[2]["messages"])
     assert analysis.citations == ("D1",)
     assert analysis.prompt_tokens == 360
     assert analysis.completion_tokens == 240
@@ -204,6 +207,7 @@ def test_chat_analysis_stops_safely_after_three_invalid_results():
 
     assert client.completions.calls == 3
     assert "response_format" not in client.completions.call_kwargs[2]
+    assert client.completions.call_kwargs[2]["max_tokens"] == 2000
 
 
 def test_chat_analysis_rejects_removed_human_confirmation_boundary():
