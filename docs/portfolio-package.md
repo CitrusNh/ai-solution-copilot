@@ -2,7 +2,7 @@
 
 ## 简历一行版
 
-**AI 企业研究与售前方案助手｜Python、Streamlit、TF-IDF、PDF 解析、GitHub、Streamlit Cloud**  
+**AI 企业研究与售前方案助手｜Python、Streamlit、TF-IDF、PDF 解析、GitHub、Streamlit Cloud**
 面向 B2B AI/SaaS 售前场景，独立完成从产品定义、资料解析、可解释检索到带来源方案草稿的可运行 MVP；针对 BYOK、等保和数据驻留等未知安全需求加入证据阻断与人工确认机制，冻结 10 道评测题并实现 10/10 通过，26 项自动化测试通过，部署公网 Demo。
 
 ## 简历两行版
