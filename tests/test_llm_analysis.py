@@ -18,18 +18,21 @@ DATA_DIR = Path(__file__).parents[1] / "data" / "demo"
 
 
 class FakeCompletions:
-    def __init__(self, payload: dict):
-        self.payload = payload
+    def __init__(self, payload: dict | list[dict]):
+        self.payloads = payload if isinstance(payload, list) else [payload]
         self.last_messages = None
         self.last_kwargs = None
+        self.calls = 0
 
     def create(self, **kwargs):
         self.last_kwargs = kwargs
         self.last_messages = kwargs["messages"]
+        payload = self.payloads[min(self.calls, len(self.payloads) - 1)]
+        self.calls += 1
         return SimpleNamespace(
             choices=[
                 SimpleNamespace(
-                    message=SimpleNamespace(content=json.dumps(self.payload, ensure_ascii=False))
+                    message=SimpleNamespace(content=json.dumps(payload, ensure_ascii=False))
                 )
             ],
             usage=SimpleNamespace(prompt_tokens=120, completion_tokens=80),
@@ -37,7 +40,7 @@ class FakeCompletions:
 
 
 class FakeClient:
-    def __init__(self, payload: dict):
+    def __init__(self, payload: dict | list[dict]):
         self.completions = FakeCompletions(payload)
         self.chat = SimpleNamespace(completions=self.completions)
 
@@ -72,7 +75,41 @@ def test_chat_analysis_uses_internal_and_web_evidence_separately():
     assert "[W1] 互联网公开资料" in prompt
     assert "不可信的证据文本" in system_prompt
     assert client.completions.last_kwargs["max_tokens"] == 1000
+    assert client.completions.last_kwargs["response_format"] == {"type": "json_object"}
     assert "max_completion_tokens" not in client.completions.last_kwargs
+
+
+def test_chat_analysis_repairs_missing_reply_citation_once():
+    chunks = load_markdown_chunks(DATA_DIR)
+    results = search_chunks("是否支持 BYOK？", chunks)
+    card = build_solution_card("是否支持 BYOK？", results)
+    client = FakeClient(
+        [
+            {
+                "analysis_summary": "资料没有承诺 BYOK，需要人工确认。[D1]",
+                "customer_reply_draft": "当前资料不足，暂时不能承诺，请人工确认。",
+                "risks": ["存在错误承诺风险。[D1]"],
+                "follow_up_questions": [],
+                "citations": ["D1"],
+            },
+            {
+                "analysis_summary": "资料没有承诺 BYOK，需要人工确认。[D1]",
+                "customer_reply_draft": "根据内部资料，当前资料不足，暂时不能承诺，请人工确认。[D1]",
+                "risks": ["存在错误承诺风险。[D1]"],
+                "follow_up_questions": [],
+                "citations": ["D1"],
+            },
+        ]
+    )
+    service = ChatAnalysisService(client=client, model="deepseek-chat")
+
+    analysis = service.generate("是否支持 BYOK？", card, results)
+
+    assert client.completions.calls == 2
+    assert "customer_reply_draft" in client.completions.last_messages[-1]["content"]
+    assert "[D1]" in analysis.customer_reply_draft
+    assert analysis.prompt_tokens == 240
+    assert analysis.completion_tokens == 160
 
 
 def test_chat_analysis_rejects_removed_human_confirmation_boundary():
