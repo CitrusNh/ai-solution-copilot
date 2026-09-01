@@ -30,6 +30,14 @@
 
 ## 当前状态
 
-2026-08-31首次连通性请求在TLS握手阶段超时。公共DNS交叉验证显示Cloudflare与Google均返回`162.159.140.245`和`172.66.0.243`，本机系统DNS则返回不同地址；使用公共DNS地址并保留正确域名与TLS证书校验时，连接仍被网络重置。因此当前网络无法连接OpenAI API。
+2026-09-01 使用用户认可的 APINebula OpenAI 兼容地址重新验证：`/v1/models` 可以连接，但当前 token 只返回 `gpt-image-2`，没有返回 Embedding 模型。随后用极小输入探测 `text-embedding-3-small`，服务端返回 HTTP 403，明确说明当前 token 没有该模型权限。
 
-请求没有成功到达Embedding接口，已知Token用量为0、已知费用为0。Embedding客户端、缓存、1元预算保护、语义/混合检索和模拟API测试均已完成，18项自动化测试通过。待切换到可访问OpenAI API的可信网络，或配置用户认可的OpenAI兼容`OPENAI_BASE_URL`后运行真实对比。
+探测没有成功生成向量，已知 Token 用量和已知费用均为 0。充值只解决账户余额，不能自动增加模型权限；在服务商为该 token 开通 Embedding 模型并能从 `/v1/models` 查到之前，不运行完整 10 题付费对比。当前网页继续使用已通过 10/10 开发评测的本地检索，不受影响。
+
+Embedding 客户端、缓存、1 元预算保护、语义/混合检索和模拟 API 测试均已完成。获得可用模型权限后，再运行：
+
+```powershell
+$env:OPENAI_BASE_URL="https://apinebula.ai/v1"
+$env:EMBEDDING_MODEL="服务商明确提供的 Embedding 模型名"
+.\.venv\Scripts\python.exe eval\evaluate_embeddings.py --mode hybrid --budget-cny 1
+```
