@@ -40,3 +40,4 @@
 - `eval/results.jsonl`：逐题证据与结果。
 - `eval/summary.json`：汇总指标。
 - `eval/baseline-report.md`：冻结基线、失败分析和证据限制。
+- `eval/final-report.md`：当前 MVP 最终验证结果与复现命令。
