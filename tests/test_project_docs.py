@@ -31,12 +31,15 @@ def test_portfolio_materials_state_validation_limits_honestly():
         encoding="utf-8"
     )
     env_example = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+    linux_packages = (PROJECT_ROOT / "packages.txt").read_text(encoding="utf-8")
 
     assert "真实用户反馈目前仍待收集" in portfolio
     assert "不是生产系统" in architecture
     assert "RapidOCR" in architecture
     assert "当前 APINebula Key" in interview
     assert "CHAT_MODEL=" in env_example
+    assert "libgl1" in linux_packages
+    assert "libglib2.0-0" in linux_packages
 
 
 def test_final_report_keeps_development_scope_explicit():

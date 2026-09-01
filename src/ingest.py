@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,8 @@ SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf"}
 MIN_EXTRACTED_PAGE_CHARS = 20
 MAX_OCR_PAGES = 20
 OCR_RENDER_SCALE = 2.0
+
+logger = logging.getLogger(__name__)
 
 
 class IngestionError(ValueError):
@@ -117,6 +120,7 @@ def ocr_pdf_pages(
         ocr_engine = engine or RapidOCR()
         document = pymupdf.open(stream=data, filetype="pdf")
     except Exception as exc:
+        logger.exception("OCR component initialization failed")
         raise IngestionError("OCR 组件初始化失败，请检查部署依赖。") from exc
 
     recognized: dict[int, str] = {}
@@ -134,6 +138,7 @@ def ocr_pdf_pages(
             raw_result, _ = ocr_engine(image)
             recognized[page_index] = _ocr_lines(raw_result)
     except Exception as exc:
+        logger.exception("Scanned PDF OCR failed")
         raise IngestionError("扫描版 PDF 的 OCR 识别失败。") from exc
     finally:
         document.close()
