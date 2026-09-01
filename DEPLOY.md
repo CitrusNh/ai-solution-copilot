@@ -44,5 +44,5 @@ CHAT_MODEL = "服务商提供的聊天模型名"
 
 1. 依赖安装失败：检查 `requirements.txt` 中的包名和构建日志。
 2. 聊天开关不可用：检查三个 Secrets 是否存在，模型名是否有权限。
-3. OCR 初始化失败：确认 `packages.txt` 已安装 `libgl1`、`libglib2.0-0`，再查看云端异常日志。
+3. OCR 初始化失败：确认 `packages.txt` 已安装 `libgl1`，再查看云端异常日志。
 4. 联网搜索失败：稍后重试；这不影响本地资料检索。

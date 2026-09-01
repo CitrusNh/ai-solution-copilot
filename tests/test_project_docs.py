@@ -39,7 +39,6 @@ def test_portfolio_materials_state_validation_limits_honestly():
     assert "当前 APINebula Key" in interview
     assert "CHAT_MODEL=" in env_example
     assert "libgl1" in linux_packages
-    assert "libglib2.0-0" in linux_packages
 
 
 def test_final_report_keeps_development_scope_explicit():
