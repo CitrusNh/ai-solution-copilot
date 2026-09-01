@@ -186,16 +186,49 @@ if analysis:
     ai_analysis = analysis.get("ai_analysis")
     ai_error = analysis.get("ai_error", "")
 
-    st.markdown("### 售前分析卡")
-    with st.container(border=True):
-        st.markdown("#### 客户需求摘要")
-        st.write(card.request_summary)
+    st.markdown("### 3. 查看结果")
+    st.caption("先看结论和回复草稿；需要核对时，再展开详细分析和来源。")
+    status_col, query_col = st.columns([1, 2])
+    with status_col:
+        st.markdown("**结论状态**")
         if card.confidence == "资料可支持初步回复":
             st.success(card.confidence)
         else:
             st.warning(card.confidence)
+    with query_col:
+        st.markdown("**客户问题**")
+        st.write(current_query)
 
-        st.markdown("#### 匹配能力")
+    st.markdown("#### 可直接使用的售前回复")
+    st.info(card.reply_draft)
+
+    if ai_error:
+        st.warning(f"AI 增强未启用：{ai_error} 已保留本地规则结果。")
+    if ai_analysis is not None:
+        with st.expander("查看 AI 增强回复（可选）", expanded=True):
+            st.caption("AI 负责优化表达；产品能力结论仍以内部资料和安全规则为准。")
+            st.markdown("**AI 售前回复草稿**")
+            st.info(ai_analysis.customer_reply_draft)
+            st.markdown("**AI 分析摘要**")
+            st.write(ai_analysis.analysis_summary)
+            if ai_analysis.risks:
+                st.markdown("**补充风险**")
+                for item in ai_analysis.risks:
+                    st.write(f"- {item}")
+            if ai_analysis.follow_up_questions:
+                st.markdown("**补充追问**")
+                for index, item in enumerate(ai_analysis.follow_up_questions, start=1):
+                    st.write(f"{index}. {item}")
+            st.caption(
+                f"模型：{ai_analysis.model} · 输入 Token：{ai_analysis.prompt_tokens} · "
+                f"输出 Token：{ai_analysis.completion_tokens}"
+            )
+
+    with st.expander("查看详细分析卡（能力、风险与追问）", expanded=False):
+        st.markdown("**客户需求摘要**")
+        st.write(card.request_summary)
+
+        st.markdown("**匹配能力**")
         if card.matched_capabilities:
             for item in card.matched_capabilities:
                 st.markdown(f"- {item.text}")
@@ -203,7 +236,7 @@ if analysis:
         else:
             st.write("当前资料中没有可确认的产品能力。")
 
-        st.markdown("#### 限制与风险")
+        st.markdown("**限制与风险**")
         if card.constraints_and_risks:
             for item in card.constraints_and_risks:
                 st.markdown(f"- {item.text}")
@@ -211,34 +244,9 @@ if analysis:
         else:
             st.write("当前检索片段中没有明确写出的限制；这不代表不存在限制。")
 
-        st.markdown("#### 建议继续询问客户")
+        st.markdown("**建议继续询问客户**")
         for index, question in enumerate(card.open_questions, start=1):
             st.write(f"{index}. {question}")
-
-        st.markdown("#### 售前回复草稿")
-        st.write(card.reply_draft)
-
-    if ai_error:
-        st.warning(f"AI 增强未启用：{ai_error} 已保留本地规则结果。")
-    if ai_analysis is not None:
-        st.markdown("### AI 增强分析")
-        with st.container(border=True):
-            st.markdown("#### 分析摘要")
-            st.write(ai_analysis.analysis_summary)
-            st.markdown("#### AI 售前回复草稿")
-            st.write(ai_analysis.customer_reply_draft)
-            if ai_analysis.risks:
-                st.markdown("#### 补充风险")
-                for item in ai_analysis.risks:
-                    st.write(f"- {item}")
-            if ai_analysis.follow_up_questions:
-                st.markdown("#### 补充追问")
-                for index, item in enumerate(ai_analysis.follow_up_questions, start=1):
-                    st.write(f"{index}. {item}")
-            st.caption(
-                f"模型：{ai_analysis.model} · 输入 Token：{ai_analysis.prompt_tokens} · "
-                f"输出 Token：{ai_analysis.completion_tokens}"
-            )
 
     report = build_markdown_report(
         card,
@@ -247,51 +255,51 @@ if analysis:
         web_results=web_results,
     )
     st.download_button(
-        "下载 Markdown 分析报告",
+        "下载完整 Markdown 报告（含来源）",
         data=report.encode("utf-8"),
         file_name="presales-analysis.md",
         mime="text/markdown",
     )
 
-    st.markdown("### 检索证据")
-    for rank, result in enumerate(results, start=1):
-        with st.container(border=True):
-            st.markdown(f"**{rank}. {result.heading}**")
-            st.caption(f"来源：{result.source} · 匹配分数：{result.score:.3f}")
-            st.write(result.content)
+    with st.expander("查看检索证据（用于核对来源）", expanded=False):
+        for rank, result in enumerate(results, start=1):
+            with st.container(border=True):
+                st.markdown(f"**{rank}. {result.heading}**")
+                st.caption(f"来源：{result.source} · 匹配分数：{result.score:.3f}")
+                st.write(result.content)
 
     if web_error:
         st.warning(f"联网搜索未完成：{web_error} 本地资料分析不受影响。")
     if web_results:
-        st.markdown("### 互联网公开资料")
-        st.caption("只用于行业背景和公开信息补充，不能作为本产品能力承诺依据。")
-        for index, item in enumerate(web_results, start=1):
-            with st.container(border=True):
-                st.markdown(f"**W{index}. {item.title}**")
-                st.write(item.snippet)
-                st.link_button("打开来源网页", item.url)
+        with st.expander("查看互联网公开资料（仅作背景）", expanded=False):
+            st.caption("互联网资料不能作为本产品能力承诺依据。")
+            for index, item in enumerate(web_results, start=1):
+                with st.container(border=True):
+                    st.markdown(f"**W{index}. {item.title}**")
+                    st.write(item.snippet)
+                    st.link_button("打开来源网页", item.url)
 
-    st.markdown("### 结果反馈")
-    st.caption("反馈只保存在本机，不上传到外部服务，也不会提交到 Git。")
-    with st.form("feedback_form", clear_on_submit=True):
-        rating = st.radio(
-            "这份分析是否有用？",
-            options=["有用", "部分有用", "无用"],
-            horizontal=True,
-        )
-        note = st.text_area(
-            "补充说明（可选）",
-            placeholder="例如：价格结论正确，但希望减少无关限制。",
-        )
-        feedback_submitted = st.form_submit_button("保存反馈")
-    if feedback_submitted:
-        append_feedback(
-            feedback_path,
-            query=current_query,
-            confidence=card.confidence,
-            rating=rating,
-            note=note,
-        )
-        st.success("反馈已保存到本机，可用于后续迭代分析。")
+    with st.expander("结果反馈（可选）", expanded=False):
+        st.caption("反馈只保存在本机，不上传到外部服务，也不会提交到 Git。")
+        with st.form("feedback_form", clear_on_submit=True):
+            rating = st.radio(
+                "这份分析是否有用？",
+                options=["有用", "部分有用", "无用"],
+                horizontal=True,
+            )
+            note = st.text_area(
+                "补充说明（可选）",
+                placeholder="例如：价格结论正确，但希望减少无关限制。",
+            )
+            feedback_submitted = st.form_submit_button("保存反馈")
+        if feedback_submitted:
+            append_feedback(
+                feedback_path,
+                query=current_query,
+                confidence=card.confidence,
+                rating=rating,
+                note=note,
+            )
+            st.success("反馈已保存到本机，可用于后续迭代分析。")
 
     st.info("本地规则分析是安全基线；AI 和联网能力失败时不会影响内部资料检索结果。")

@@ -130,7 +130,7 @@ def test_streamlit_search_flow_shows_a_source():
     assert any(
         "security_faq.md" in caption.value for caption in app.caption
     )
-    assert any("售前分析卡" in markdown.value for markdown in app.markdown)
-    assert sum("检索证据" in markdown.value for markdown in app.markdown) == 1
+    assert any("3. 查看结果" in markdown.value for markdown in app.markdown)
+    assert sum("查看检索证据" in expander.label for expander in app.expander) == 1
     assert app.download_button
-    assert any("结果反馈" in markdown.value for markdown in app.markdown)
+    assert sum("结果反馈" in expander.label for expander in app.expander) == 1

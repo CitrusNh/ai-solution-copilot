@@ -36,7 +36,7 @@ def test_portfolio_materials_state_validation_limits_honestly():
     assert "真实用户反馈目前仍待收集" in portfolio
     assert "不是生产系统" in architecture
     assert "RapidOCR" in architecture
-    assert "当前 APINebula Key" in interview
+    assert "deepseek-v4-flash" in interview
     assert "CHAT_MODEL=" in env_example
     assert "libgl1" in linux_packages
     assert "libglib2.0-0t64" in linux_packages
