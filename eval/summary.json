@@ -9,7 +9,7 @@
   "critical_cases": 3,
   "critical_passed": 3,
   "critical_pass_rate": 1.0,
-  "average_latency_ms": 4.534000000000001,
+  "average_latency_ms": 5.5441,
   "total_cost_usd": 0.0,
   "failed_case_ids": []
 }

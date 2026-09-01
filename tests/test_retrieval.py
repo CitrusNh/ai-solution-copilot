@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from src.ingest import IngestionError, parse_document
+from src.ingest import IngestionError, parse_document, parse_pdf
 from src.retrieve import load_markdown_chunks, search_chunks
 
 
@@ -77,7 +77,7 @@ def test_txt_upload_can_be_retrieved():
     assert "12000" in results[0].content
 
 
-def test_blank_pdf_explains_ocr_limitation():
+def test_blank_pdf_explains_failed_text_recognition():
     from pypdf import PdfWriter
 
     writer = PdfWriter()
@@ -85,8 +85,32 @@ def test_blank_pdf_explains_ocr_limitation():
     output = __import__("io").BytesIO()
     writer.write(output)
 
-    with pytest.raises(IngestionError, match="OCR"):
+    with pytest.raises(IngestionError, match="识别"):
         parse_document("scan.pdf", output.getvalue())
+
+
+def test_scanned_pdf_uses_ocr_and_preserves_page_source():
+    import pymupdf
+
+    document = pymupdf.open()
+    page = document.new_page(width=300, height=120)
+    page.draw_rect(page.rect, color=(0, 0, 0), fill=(1, 1, 1))
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    class FakeOcrEngine:
+        def __call__(self, image):
+            assert image.shape[0] > 0
+            return (
+                [[[[0, 0], [10, 0], [10, 10], [0, 10]], "扫描资料支持审计日志", 0.99]],
+                [0.01, 0.01, 0.01],
+            )
+
+    chunks = parse_pdf("scan.pdf", pdf_bytes, ocr_engine=FakeOcrEngine())
+
+    assert chunks[0].source == "scan.pdf"
+    assert chunks[0].heading == "第 1 页 · OCR"
+    assert "审计日志" in chunks[0].content
 
 
 def test_unsupported_upload_is_rejected():

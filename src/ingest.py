@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 from pypdf import PdfReader
 
@@ -12,6 +13,9 @@ from src.retrieve import DocumentChunk, split_markdown_text
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf"}
+MIN_EXTRACTED_PAGE_CHARS = 20
+MAX_OCR_PAGES = 20
+OCR_RENDER_SCALE = 2.0
 
 
 class IngestionError(ValueError):
@@ -78,8 +82,71 @@ def split_plain_text(
     return chunks
 
 
-def parse_pdf(name: str, data: bytes) -> list[DocumentChunk]:
-    """Extract searchable text from each page of a PDF."""
+def _ocr_lines(result: Any) -> str:
+    """Normalize RapidOCR output into one readable text block."""
+
+    lines: list[str] = []
+    for item in result or []:
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            continue
+        text = str(item[1]).strip()
+        if text:
+            lines.append(text)
+    return "\n".join(lines)
+
+
+def ocr_pdf_pages(
+    data: bytes,
+    page_indices: list[int],
+    *,
+    engine: Any | None = None,
+) -> dict[int, str]:
+    """Render selected PDF pages and recognize text locally with RapidOCR."""
+
+    if not page_indices:
+        return {}
+    if len(page_indices) > MAX_OCR_PAGES:
+        raise IngestionError(
+            f"扫描页超过 {MAX_OCR_PAGES} 页，请拆分 PDF 后重新上传。"
+        )
+    try:
+        import pymupdf
+        import numpy as np
+        from rapidocr_onnxruntime import RapidOCR
+
+        ocr_engine = engine or RapidOCR()
+        document = pymupdf.open(stream=data, filetype="pdf")
+    except Exception as exc:
+        raise IngestionError("OCR 组件初始化失败，请检查部署依赖。") from exc
+
+    recognized: dict[int, str] = {}
+    try:
+        for page_index in page_indices:
+            page = document.load_page(page_index)
+            pixmap = page.get_pixmap(
+                matrix=pymupdf.Matrix(OCR_RENDER_SCALE, OCR_RENDER_SCALE),
+                colorspace=pymupdf.csRGB,
+                alpha=False,
+            )
+            image = np.frombuffer(pixmap.samples, dtype=np.uint8).reshape(
+                pixmap.height, pixmap.width, pixmap.n
+            )
+            raw_result, _ = ocr_engine(image)
+            recognized[page_index] = _ocr_lines(raw_result)
+    except Exception as exc:
+        raise IngestionError("扫描版 PDF 的 OCR 识别失败。") from exc
+    finally:
+        document.close()
+    return recognized
+
+
+def parse_pdf(
+    name: str,
+    data: bytes,
+    *,
+    ocr_engine: Any | None = None,
+) -> list[DocumentChunk]:
+    """Extract text from normal PDFs and OCR pages without a text layer."""
 
     try:
         reader = PdfReader(BytesIO(data))
@@ -94,23 +161,39 @@ def parse_pdf(name: str, data: bytes) -> list[DocumentChunk]:
         if not unlocked:
             raise IngestionError("PDF 已加密，请先解除密码保护。")
 
-    chunks: list[DocumentChunk] = []
+    extracted_pages: list[str] = []
     for page_number, page in enumerate(reader.pages, start=1):
         try:
             page_text = page.extract_text() or ""
         except Exception:
             page_text = ""
+        extracted_pages.append(page_text.strip())
+
+    scan_indices = [
+        index
+        for index, text in enumerate(extracted_pages)
+        if len("".join(text.split())) < MIN_EXTRACTED_PAGE_CHARS
+    ]
+    ocr_pages = ocr_pdf_pages(data, scan_indices, engine=ocr_engine)
+
+    chunks: list[DocumentChunk] = []
+    for page_index, extracted_text in enumerate(extracted_pages):
+        ocr_text = ocr_pages.get(page_index, "").strip()
+        page_text = ocr_text or extracted_text
+        heading = f"第 {page_index + 1} 页"
+        if ocr_text:
+            heading += " · OCR"
         chunks.extend(
             split_plain_text(
                 page_text,
                 source=name,
-                heading=f"第 {page_number} 页",
+                heading=heading,
             )
         )
 
     if not chunks:
         raise IngestionError(
-            "PDF 中没有提取到文字。扫描件需要 OCR，我们会在后续版本加入。"
+            "PDF 中没有识别到文字。请检查扫描清晰度、方向或页面内容。"
         )
     return chunks
 
@@ -139,4 +222,3 @@ def parse_document(name: str, data: bytes) -> list[DocumentChunk]:
     if not chunks:
         raise IngestionError("文件中没有可检索的文字。")
     return chunks
-

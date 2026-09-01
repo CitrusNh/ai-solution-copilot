@@ -5,14 +5,22 @@ from __future__ import annotations
 import csv
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.retrieve import SearchResult
 from src.solution_card import SolutionCard
+
+if TYPE_CHECKING:
+    from src.llm_analysis import LLMAnalysis
+    from src.web_search import WebSearchResult
 
 
 def build_markdown_report(
     card: SolutionCard,
     results: list[SearchResult],
+    *,
+    ai_analysis: "LLMAnalysis | None" = None,
+    web_results: "list[WebSearchResult] | None" = None,
 ) -> str:
     """Render one analysis card as a shareable Markdown document."""
 
@@ -63,10 +71,59 @@ def build_markdown_report(
                 "",
             ]
         )
+    if ai_analysis is not None:
+        lines.extend(
+            [
+                "## AI 增强分析",
+                "",
+                ai_analysis.analysis_summary,
+                "",
+                "### AI 售前回复草稿",
+                "",
+                ai_analysis.customer_reply_draft,
+                "",
+                f"模型：{ai_analysis.model}",
+                f"Token：输入 {ai_analysis.prompt_tokens}，输出 {ai_analysis.completion_tokens}",
+                "",
+            ]
+        )
+        if ai_analysis.risks:
+            lines.extend(["### AI 补充风险", ""])
+            lines.extend(f"- {item}" for item in ai_analysis.risks)
+            lines.append("")
+        if ai_analysis.follow_up_questions:
+            lines.extend(["### AI 建议追问", ""])
+            lines.extend(
+                f"{index}. {item}"
+                for index, item in enumerate(
+                    ai_analysis.follow_up_questions, start=1
+                )
+            )
+            lines.append("")
+    if web_results:
+        lines.extend(
+            [
+                "## 互联网公开资料",
+                "",
+                "> 互联网资料只用于补充背景，不能证明本产品支持某项能力。",
+                "",
+            ]
+        )
+        for index, item in enumerate(web_results, start=1):
+            lines.extend(
+                [
+                    f"### W{index}. {item.title}",
+                    "",
+                    item.url,
+                    "",
+                    item.snippet,
+                    "",
+                ]
+            )
     lines.extend(
         [
             "---",
-            "本报告由本地规则版本生成，关键结论应由售前或产品负责人复核。",
+            "本报告保留本地规则安全基线；AI 内容属于辅助草稿，关键结论应由售前或产品负责人复核。",
             "",
         ]
     )

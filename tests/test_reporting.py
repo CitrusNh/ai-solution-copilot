@@ -1,8 +1,10 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from src.reporting import append_feedback, build_markdown_report, count_feedback
 from src.retrieve import load_markdown_chunks, search_chunks
 from src.solution_card import build_solution_card
+from src.web_search import WebSearchResult
 
 
 DATA_DIR = Path(__file__).parents[1] / "data" / "demo"
@@ -43,3 +45,33 @@ def test_feedback_is_appended_locally(tmp_path: Path):
     assert count_feedback(feedback_path) == 2
     assert "没有乱承诺" in content
     assert "OPENAI_API_KEY" not in content
+
+
+def test_markdown_report_keeps_ai_and_web_sources_separate():
+    chunks = load_markdown_chunks(DATA_DIR)
+    results = search_chunks("最多支持多少用户？", chunks)
+    card = build_solution_card("最多支持多少用户？", results)
+    ai_analysis = SimpleNamespace(
+        analysis_summary="专业版最多 500 名用户。[D1]",
+        customer_reply_draft="根据内部资料，最多 500 名用户。[D1]",
+        risks=("超过上限需要升级。[D1]",),
+        follow_up_questions=("客户预计多少账号？[D1]",),
+        model="fake-chat",
+        prompt_tokens=100,
+        completion_tokens=50,
+    )
+    web_results = [
+        WebSearchResult("行业资料", "https://example.com", "公开行业背景")
+    ]
+
+    report = build_markdown_report(
+        card,
+        results,
+        ai_analysis=ai_analysis,
+        web_results=web_results,
+    )
+
+    assert "## AI 增强分析" in report
+    assert "## 互联网公开资料" in report
+    assert "不能证明本产品支持某项能力" in report
+    assert "AI 内容属于辅助草稿" in report

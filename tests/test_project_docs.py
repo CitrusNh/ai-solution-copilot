@@ -12,6 +12,7 @@ def test_readme_exposes_demo_and_portfolio_materials():
         "docs/architecture.md",
         "docs/portfolio-package.md",
         "docs/demo-script.md",
+        "docs/hr-pitch.md",
         "docs/interview-guide.md",
         "eval/final-report.md",
     ):
@@ -26,9 +27,16 @@ def test_portfolio_materials_state_validation_limits_honestly():
     architecture = (PROJECT_ROOT / "docs" / "architecture.md").read_text(
         encoding="utf-8"
     )
+    interview = (PROJECT_ROOT / "docs" / "interview-guide.md").read_text(
+        encoding="utf-8"
+    )
+    env_example = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
 
     assert "真实用户反馈目前仍待收集" in portfolio
     assert "不是生产系统" in architecture
+    assert "RapidOCR" in architecture
+    assert "当前 APINebula Key" in interview
+    assert "CHAT_MODEL=" in env_example
 
 
 def test_final_report_keeps_development_scope_explicit():

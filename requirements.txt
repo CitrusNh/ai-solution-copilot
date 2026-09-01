@@ -6,4 +6,6 @@ pypdf
 pandas
 scikit-learn
 pytest
-
+ddgs
+PyMuPDF
+rapidocr_onnxruntime
