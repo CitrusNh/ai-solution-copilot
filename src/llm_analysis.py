@@ -49,11 +49,20 @@ class LLMAnalysis:
 
 
 def _strip_json_wrapper(content: str) -> str:
-    start = content.find("{")
-    end = content.rfind("}")
-    if start < 0 or end <= start:
+    if not isinstance(content, str) or not content.strip():
         raise LLMAnalysisError("大模型没有返回可解析的 JSON 结果。")
-    return content[start : end + 1]
+
+    # Providers may wrap valid JSON in Markdown fences or a short preamble.
+    decoder = json.JSONDecoder()
+    for start, character in enumerate(content):
+        if character != "{":
+            continue
+        try:
+            _, end = decoder.raw_decode(content[start:])
+        except json.JSONDecodeError:
+            continue
+        return content[start : start + end]
+    raise LLMAnalysisError("大模型没有返回可解析的 JSON 结果。")
 
 
 def _format_internal_evidence(results: list[SearchResult]) -> str:
@@ -91,7 +100,8 @@ def build_grounded_messages(
 
     system_prompt += """
 8. customer_reply_draft 字段本身必须至少包含一个内部证据引用，例如 [D1]；不能只在 analysis_summary 或 citations 字段中引用。
-9. citations 数组必须与所有文字字段中实际出现的 [D1]/[W1] 编号完全一致。"""
+9. citations 数组必须与所有文字字段中实际出现的 [D1]/[W1] 编号完全一致。
+10. 只输出合法 JSON 对象，不要输出 Markdown 代码块、解释、前后缀或思维过程。"""
 
     user_prompt = f"""客户问题：{query}
 
@@ -254,17 +264,21 @@ class ChatAnalysisService:
             client = OpenAI(**kwargs)
         self.client = client
 
-    def _create_completion(self, messages: list[dict[str, str]]) -> Any:
+    def _create_completion(
+        self, messages: list[dict[str, str]], *, json_mode: bool = True
+    ) -> Any:
         """Request one JSON response from the configured chat provider."""
 
         try:
-            return self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.1,
-                max_tokens=1000,
-                response_format={"type": "json_object"},
-            )
+            kwargs: dict[str, Any] = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": 0.1,
+                "max_tokens": 1000,
+            }
+            if json_mode:
+                kwargs["response_format"] = {"type": "json_object"}
+            return self.client.chat.completions.create(**kwargs)
         except OpenAIError as exc:
             raise LLMAnalysisError(
                 "聊天模型调用失败，请检查模型权限、额度、网络和 API 配置。"
@@ -285,6 +299,28 @@ class ChatAnalysisService:
             int(getattr(usage, "prompt_tokens", 0) or 0),
             int(getattr(usage, "completion_tokens", 0) or 0),
         )
+
+    @staticmethod
+    def _repair_messages(
+        messages: list[dict[str, str]], content: str, error: LLMAnalysisError
+    ) -> list[dict[str, str]]:
+        """Build a provider-compatible bounded repair request."""
+
+        return [
+            *messages,
+            {"role": "assistant", "content": content},
+            {
+                "role": "user",
+                "content": (
+                    f"上一个结果未通过校验：{error}。请重新生成结果。"
+                    "只输出一个合法 JSON 对象（不要 Markdown、不要解释），字段必须是："
+                    "analysis_summary、customer_reply_draft、risks、follow_up_questions、citations。"
+                    "customer_reply_draft 必须包含至少一个 [D1] 内部资料引用；"
+                    "citations 必须与所有文字字段中的 [D1]/[W1] 引用完全一致；"
+                    "不得改变系统结论或人工确认边界。"
+                ),
+            },
+        ]
 
     def generate(
         self,
@@ -313,19 +349,7 @@ class ChatAnalysisService:
                 require_blocking_language=require_blocking,
             )
         except LLMAnalysisError as first_error:
-            repair_messages = [
-                *messages,
-                {"role": "assistant", "content": content},
-                {
-                    "role": "user",
-                    "content": (
-                        f"上一个 JSON 未通过校验：{first_error} "
-                        "请只重新输出修正后的 JSON。customer_reply_draft 字段本身必须包含至少一个 "
-                        "[D1] 形式的内部证据引用；citations 数组必须与所有文字字段中的引用完全一致；"
-                        "不得改变系统结论或人工确认边界。"
-                    ),
-                },
-            ]
+            repair_messages = self._repair_messages(messages, content, first_error)
             repaired_response = self._create_completion(repair_messages)
             repaired_content = self._response_content(repaired_response)
             repaired_prompt_tokens, repaired_completion_tokens = self._usage_tokens(
@@ -346,7 +370,32 @@ class ChatAnalysisService:
                     require_blocking_language=require_blocking,
                 )
                 if payload is None:
-                    raise second_error
+                    # Some OpenAI-compatible gateways ignore or reject JSON mode.
+                    # Make one final plain request, then apply the same validator.
+                    plain_response = self._create_completion(
+                        self._repair_messages(messages, repaired_content, second_error),
+                        json_mode=False,
+                    )
+                    plain_content = self._response_content(plain_response)
+                    plain_prompt_tokens, plain_completion_tokens = self._usage_tokens(
+                        plain_response
+                    )
+                    prompt_tokens += plain_prompt_tokens
+                    completion_tokens += plain_completion_tokens
+                    try:
+                        payload = validate_analysis_payload(
+                            plain_content,
+                            allowed_citations=allowed,
+                            require_blocking_language=require_blocking,
+                        )
+                    except LLMAnalysisError as third_error:
+                        payload = _repair_missing_reply_citation(
+                            plain_content,
+                            allowed_citations=allowed,
+                            require_blocking_language=require_blocking,
+                        )
+                        if payload is None:
+                            raise third_error from second_error
 
         return LLMAnalysis(
             analysis_summary=payload.analysis_summary,

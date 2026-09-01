@@ -18,21 +18,28 @@ DATA_DIR = Path(__file__).parents[1] / "data" / "demo"
 
 
 class FakeCompletions:
-    def __init__(self, payload: dict | list[dict]):
+    def __init__(self, payload: dict | str | list[dict | str]):
         self.payloads = payload if isinstance(payload, list) else [payload]
         self.last_messages = None
         self.last_kwargs = None
+        self.call_kwargs = []
         self.calls = 0
 
     def create(self, **kwargs):
         self.last_kwargs = kwargs
+        self.call_kwargs.append(kwargs)
         self.last_messages = kwargs["messages"]
         payload = self.payloads[min(self.calls, len(self.payloads) - 1)]
         self.calls += 1
+        content = (
+            payload
+            if isinstance(payload, str)
+            else json.dumps(payload, ensure_ascii=False)
+        )
         return SimpleNamespace(
             choices=[
                 SimpleNamespace(
-                    message=SimpleNamespace(content=json.dumps(payload, ensure_ascii=False))
+                    message=SimpleNamespace(content=content)
                 )
             ],
             usage=SimpleNamespace(prompt_tokens=120, completion_tokens=80),
@@ -40,7 +47,7 @@ class FakeCompletions:
 
 
 class FakeClient:
-    def __init__(self, payload: dict | list[dict]):
+    def __init__(self, payload: dict | str | list[dict | str]):
         self.completions = FakeCompletions(payload)
         self.chat = SimpleNamespace(completions=self.completions)
 
@@ -130,6 +137,73 @@ def test_chat_analysis_repairs_missing_reply_citation_without_third_request():
 
     assert client.completions.calls == 2
     assert analysis.customer_reply_draft.endswith("[D1]")
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    [
+        "```json\n{payload}\n```",
+        "下面是结果：\n{payload}\n以上为结构化分析。",
+    ],
+)
+def test_chat_analysis_parses_json_wrapped_by_provider_text(wrapper):
+    payload = json.dumps(
+        {
+            "analysis_summary": "专业版最多支持 500 名用户。[D1]",
+            "customer_reply_draft": "专业版最多支持 500 名用户。[D1]",
+            "risks": [],
+            "follow_up_questions": [],
+            "citations": ["D1"],
+        },
+        ensure_ascii=False,
+    )
+
+    parsed = validate_analysis_payload(
+        wrapper.format(payload=payload),
+        allowed_citations={"D1"},
+        require_blocking_language=False,
+    )
+
+    assert parsed.citations == ["D1"]
+
+
+def test_chat_analysis_falls_back_to_plain_request_after_two_invalid_json_results():
+    chunks = load_markdown_chunks(DATA_DIR)
+    results = search_chunks("是否支持 BYOK？", chunks)
+    card = build_solution_card("是否支持 BYOK？", results)
+    valid_payload = {
+        "analysis_summary": "资料没有承诺 BYOK，需要人工确认。[D1]",
+        "customer_reply_draft": "当前资料不足，不能承诺，请人工确认。[D1]",
+        "risks": ["存在错误承诺风险。[D1]"],
+        "follow_up_questions": [],
+        "citations": ["D1"],
+    }
+    client = FakeClient(["不是 JSON", "仍然不是 JSON", valid_payload])
+    service = ChatAnalysisService(client=client, model="deepseek-chat")
+
+    analysis = service.generate("是否支持 BYOK？", card, results)
+
+    assert client.completions.calls == 3
+    assert "response_format" in client.completions.call_kwargs[0]
+    assert "response_format" in client.completions.call_kwargs[1]
+    assert "response_format" not in client.completions.call_kwargs[2]
+    assert analysis.citations == ("D1",)
+    assert analysis.prompt_tokens == 360
+    assert analysis.completion_tokens == 240
+
+
+def test_chat_analysis_stops_safely_after_three_invalid_results():
+    chunks = load_markdown_chunks(DATA_DIR)
+    results = search_chunks("是否支持 BYOK？", chunks)
+    card = build_solution_card("是否支持 BYOK？", results)
+    client = FakeClient(["不是 JSON", "仍然不是 JSON", "最终也不是 JSON"])
+    service = ChatAnalysisService(client=client, model="deepseek-chat")
+
+    with pytest.raises(LLMAnalysisError, match="没有返回可解析的 JSON"):
+        service.generate("是否支持 BYOK？", card, results)
+
+    assert client.completions.calls == 3
+    assert "response_format" not in client.completions.call_kwargs[2]
 
 
 def test_chat_analysis_rejects_removed_human_confirmation_boundary():
